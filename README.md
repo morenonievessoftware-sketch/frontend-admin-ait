@@ -21,31 +21,38 @@ Construido con una arquitectura moderna orientada a escalabilidad.
 🔐 JWT Authentication
 ⚙️ Instalación
 git clone https://github.com/tuusuario/aideateach-admin.git
+
 cd aideateach-admin
+
 npm install
+
 ▶️ Ejecución
 npm run dev
+
 🌐 Variables de entorno
 VITE_API_URL=https://tu-backend.onrender.com
+
 📦 Build
 npm run build
-🧠 Funcionalidades clave
-Gestión de planes y precios
-Control de usuarios y roles
-Visualización de pagos
-Administración de suscripciones
+
+🧠 Funcionalidades clave:
+* Gestión de planes y precios
+* Control de usuarios y roles
+* Visualización de pagos
+* Administración de suscripciones
+
 🔐 Seguridad
 Autenticación basada en JWT
 Protección por roles (admin)
+
 🚀 Deploy
-
 Recomendado usar:
-
 Vercel
+
 📌 Estado del proyecto
 
 🟢 MVP en desarrollo activo
 
 👨‍💻 Autor
 
-Desarrollado como parte del ecosistema AIdeaTeach.
+Desarrollado como parte del ecosistema AIdeaTeach. Jose L. Moreno
