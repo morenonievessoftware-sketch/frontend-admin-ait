@@ -142,10 +142,6 @@ onMounted(async () => {
           </p>
 
           <ul class="plan-features">
-            <li>
-              <i class="pi pi-check text-green-500 mr-2"></i>
-              <span>{{ plan.aiQueriesLimit }} </span> Consultas de IA por mes
-            </li>            
             <li v-for="descrip in plan.descripciones" :key="descrip.id">
               <i class="pi pi-check text-green-500 mr-2"></i>
               {{ descrip.descripcion }}
