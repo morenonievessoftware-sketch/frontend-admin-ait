@@ -1,5 +1,5 @@
 import api from './api'
-import type { Suscripcion } from '../types'
+import type { Pagination, Suscripcion, paramsPagination } from '../types'
 
 /**
  * Obtiene la suscripción activa del usuario autenticado
@@ -13,6 +13,17 @@ export async function getSuscripcionActiva(): Promise<Suscripcion | null> {
     if (error.response?.status === 404) {
       return null
     }
+    throw error
+  }
+}
+
+export const getListSuscripciones = async (params?: paramsPagination): Promise<Pagination<Suscripcion>> => {
+  try {
+    const { data } = await api.get('/suscripciones', { params: params ? { ...params } : undefined })
+    console.log('listado de suscripciones:', data)
+    return data
+  } catch (error) {
+    console.error('Error al obtener las suscripciones:', error)
     throw error
   }
 }

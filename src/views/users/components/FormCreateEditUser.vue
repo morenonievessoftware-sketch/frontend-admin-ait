@@ -83,10 +83,10 @@ const inputOk = "border-slate-300 focus:border-blue-500 focus:ring-blue-200"
 const inputErr = "border-red-400 focus:border-red-500 focus:ring-red-100"
 
 
-const emit = defineEmits({
-    "update:visible": (value: boolean) => true,
-    "isSaved": (value: boolean) => true
-})
+const emit = defineEmits<{
+    (event: "update:visible", value: boolean): void
+    (event: "isSaved", value: boolean): void
+}>()
 
 const cerrarModal = (event: any) => {
     emit("update:visible", event)

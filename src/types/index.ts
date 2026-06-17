@@ -142,15 +142,34 @@ export interface DescripcionesPlan {
   descripcion: string
 }
 
+export type paramsPagination = {
+  page?: number
+  limit?: number
+}
+
 // Suscripcion types
 export interface Suscripcion {
   id: string
   userId: string
   planId: string
+  nombreUsuario: string
+  apellidoUsuario: string
+  tipoPlan: string
   fechaInicio: string
   fechaFin: string
   estado: 'activa' | 'cancelada' | 'expirada'
   createdAt: string
+}
+
+export interface Pagination<T> {
+  data: T[]
+  totalItems: number
+  totalPages: number
+  hasNextPage: boolean
+  hasPreviousPage: boolean
+  limit: number
+  page: number
+  offset: number
 }
 
 // Pago/Payment types
