@@ -157,7 +157,7 @@ export interface Suscripcion {
   tipoPlan: string
   fechaInicio: string
   fechaFin: string
-  estado: 'activa' | 'cancelada' | 'expirada'
+  estado: 'activo' | 'cancelada' | 'expirada'
   createdAt: string
 }
 
