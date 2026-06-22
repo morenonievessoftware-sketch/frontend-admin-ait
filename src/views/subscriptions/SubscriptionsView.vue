@@ -3,11 +3,13 @@ import { computed, ref, watch, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import Card from 'primevue/card'
 import Popover from 'primevue/popover';
-import IconPerson from "../../assets/person.svg"
+import ProgressSpinner from 'primevue/progressspinner';
 import Paginator from 'primevue/paginator'
 import type { PageState } from 'primevue/paginator'
-import { getListSuscripciones } from '../../services/suscripciones'
 import type { Suscripcion } from '../../types'
+import IconPerson from "../../assets/person.svg"
+import { getListSuscripciones } from '../../services/suscripciones'
+
 
 const route = useRoute()
 const router = useRouter()
@@ -133,7 +135,9 @@ onMounted(() => {
         </div>
       </template>
       <template #content>
-
+        <div v-if="loading" class="flex items-center justify-center py-10">
+          <ProgressSpinner />
+        </div>
         <div v-for="suscripcion in suscripciones" :key="suscripcion.id">
           <div class="relative z-0 border border-gray-200 sm:max-w-3/12 md:max-w-3/12 lg:max-w-3/12 rounded-xl p-4 transition-shadow duration-300 hover:z-10 hover:shadow-[0_6px_15px_rgba(15,23,42,0.16)]">
             <div class="flex items-center justify-between mb-4">
