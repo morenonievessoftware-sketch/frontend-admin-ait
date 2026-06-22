@@ -24,12 +24,12 @@ const toggle = (event: any) => {
 }
 
 
-const parsePage = (value: unknown) => {
+const parsePage = (value: any) => {
   const parsedValue = Number(value)
   return Number.isInteger(parsedValue) && parsedValue > 0 ? parsedValue : 1
 }
 
-const parseLimit = (value: unknown) => {
+const parseLimit = (value: any) => {
   const parsedValue = Number(value)
   return rowsPerPageOptions.includes(parsedValue) ? parsedValue : defaultRows
 }
