@@ -145,6 +145,7 @@ export interface DescripcionesPlan {
 export type paramsPagination = {
   page?: number
   limit?: number
+  search?: string
 }
 
 // Suscripcion types
@@ -157,7 +158,7 @@ export interface Suscripcion {
   tipoPlan: string
   fechaInicio: string
   fechaFin: string
-  estado: 'activo' | 'cancelada' | 'expirada'
+  estado: 'activo'| 'Inactivo' | 'cancelada' | 'expired'
   createdAt: string
 }
 

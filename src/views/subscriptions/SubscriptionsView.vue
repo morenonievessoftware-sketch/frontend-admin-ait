@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { computed, ref, watch, onMounted } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
+import { computed, onBeforeUnmount, ref, watch } from 'vue'
+import { useRoute, useRouter, type LocationQueryRaw } from 'vue-router'
 import Card from 'primevue/card'
 import Popover from 'primevue/popover';
 import ProgressSpinner from 'primevue/progressspinner';
@@ -8,7 +8,8 @@ import Paginator from 'primevue/paginator'
 import type { PageState } from 'primevue/paginator'
 import type { Suscripcion } from '../../types'
 import IconPerson from "../../assets/person.svg"
-import { getListSuscripciones } from '../../services/suscripciones'
+import NoData from "../../assets/no-data.svg"
+import { getListSuscripciones, cancelarSuscripcion } from '../../services/suscripciones'
 
 
 const route = useRoute()
@@ -36,27 +37,59 @@ const parseLimit = (value: any) => {
   return rowsPerPageOptions.includes(parsedValue) ? parsedValue : defaultRows
 }
 
+const parseSearch = (value: unknown) => {
+  if (typeof value === 'string') {
+    return value
+  }
+
+  if (Array.isArray(value)) {
+    return value[0] ?? ''
+  }
+
+  return ''
+}
+
+const searchTerm = ref<string>(parseSearch(route.query.search))
+let searchDebounceTimer: ReturnType<typeof setTimeout> | undefined
+
 const currentPage = computed(() => parsePage(route.query.page))
 const currentLimit = computed(() => parseLimit(route.query.limit))
+const currentSearch = computed(() => parseSearch(route.query.search))
 
 const firstRecord = computed(() => (currentPage.value - 1) * currentLimit.value)
 
-const suspenderSuscripcion = async (id: string) => {
-  console.log('Suspender suscripción con ID:', id)
-  return
+const buildQuery = (page: number, limit: number, search: string) => {
+  const query: LocationQueryRaw = {
+    page: String(page),
+    limit: String(limit),
+  }
+
+  if (search) {
+    query.search = search
+  }
+
+  return query
+}
+
+const suspenderSuscripcion = async (userId: string) => {
+  console.log('Suspender suscripción con ID:', userId)
+  // return
   try {
-    await router.push(`/subscriptions/${id}/suspender`)
+    const res = await cancelarSuscripcion(userId)
+    listarSuscripciones()
+    console.log('Suscripción suspendida:', res)
   } catch (error) {
     console.error('Error al suspender la suscripción:', error)
   }
 }
 
-const listarSuscripciones = async () => {
+const listarSuscripciones = async (page = currentPage.value, limit = currentLimit.value, search = currentSearch.value) => {
   loading.value = true
   try {
     const response = await getListSuscripciones({
-      page: currentPage.value,
-      limit: currentLimit.value,
+      page,
+      limit,
+      search: search || undefined,
     })
     suscripciones.value = response.data
     totalItems.value = response.totalItems
@@ -67,52 +100,64 @@ const listarSuscripciones = async () => {
   }
 }
 
-const syncPaginationToUrl = async (page: number, limit: number) => {
-  const nextPage = String(page)
-  const nextLimit = String(limit)
-
-  if (route.query.page === nextPage && route.query.limit === nextLimit) {
-    return true
-  }
-
-  await router.replace({
-    query: {
-      ...route.query,
-      page: nextPage,
-      limit: nextLimit,
-    },
-  })
-
-  return false
-}
-
 const changePage = (event: PageState) => {
   void router.push({
-    query: {
-      ...route.query,
-      page: String(event.page + 1),
-      limit: String(event.rows),
-    },
+    query: buildQuery(event.page + 1, event.rows, currentSearch.value),
   })
 }
 
 watch(
-  [currentPage, currentLimit],
-  async ([page, limit]) => {
-    const shouldFetch = await syncPaginationToUrl(page, limit)
+  () => [route.query.page, route.query.limit, route.query.search],
+  async () => {
+    const page = parsePage(route.query.page)
+    const limit = parseLimit(route.query.limit)
+    const search = parseSearch(route.query.search)
+    const rawSearch = route.query.search
 
-    if (!shouldFetch) {
+    const requiresNormalization =
+      route.query.page !== String(page) ||
+      route.query.limit !== String(limit) ||
+      (search === '' ? Array.isArray(rawSearch) || rawSearch === '' : rawSearch !== search)
+
+    if (requiresNormalization) {
+      await router.replace({
+        query: buildQuery(page, limit, search),
+      })
       return
     }
 
-    void listarSuscripciones()
+    await listarSuscripciones(page, limit, search)
   },
   { immediate: true }
 )
 
-onMounted(() => {
-  void listarSuscripciones()
-}) 
+watch(currentSearch, (value) => {
+  if (value !== searchTerm.value) {
+    searchTerm.value = value
+  }
+}, { immediate: true })
+
+watch(searchTerm, (value) => {
+  if (value === currentSearch.value) {
+    return
+  }
+
+  if (searchDebounceTimer) {
+    clearTimeout(searchDebounceTimer)
+  }
+
+  searchDebounceTimer = setTimeout(() => {
+    void router.replace({
+      query: buildQuery(1, currentLimit.value, value),
+    })
+  }, 500)
+})
+
+onBeforeUnmount(() => {
+  if (searchDebounceTimer) {
+    clearTimeout(searchDebounceTimer)
+  }
+})
 </script>
 
 <template>
@@ -129,6 +174,7 @@ onMounted(() => {
             <input
               type="search"
               placeholder="Buscar..."
+              v-model="searchTerm"
               class="w-full rounded-md border border-gray-200 py-1.5 pl-10 pr-3 outline-none"
             />
           </div>
@@ -138,8 +184,12 @@ onMounted(() => {
         <div v-if="loading" class="flex items-center justify-center py-10">
           <ProgressSpinner />
         </div>
+        <div v-else-if="!loading && suscripciones.length === 0" class="flex flex-col items-center justify-center py-10 gap-4">
+          <img :src="NoData" alt="No data" class="w-64 h-64 opacity-50" />
+          <p class="text-gray-500">No hay registros.</p>
+        </div>
         <div v-for="suscripcion in suscripciones" :key="suscripcion.id">
-          <div class="relative z-0 border border-gray-200 sm:max-w-3/12 md:max-w-3/12 lg:max-w-3/12 rounded-xl p-4 transition-shadow duration-300 hover:z-10 hover:shadow-[0_6px_15px_rgba(15,23,42,0.16)]">
+          <div class="relative z-0 border border-gray-200 md:min-w-3/12 sm:max-w-3/12 md:max-w-3/12 lg:max-w-3/12 rounded-xl p-4 transition-shadow duration-300 hover:z-10 hover:shadow-[0_6px_15px_rgba(15,23,42,0.16)]">
             <div class="flex items-center justify-between mb-4">
               <span :class="['status-badge', suscripcion.estado === 'activo' ? 'activa' : 'inactiva']">
                 {{ suscripcion.estado }}
@@ -151,7 +201,7 @@ onMounted(() => {
               <Popover ref="op">
                 <div class="flex flex-col gap-4">
                   <div>
-                     <button class="cursor-pointer rounded-full p-1.5" @click="suspenderSuscripcion(suscripcion.id)" title="Suspender suscripción">
+                     <button class="cursor-pointer rounded-full p-1.5" @click="suspenderSuscripcion(suscripcion.userId)" title="Suspender suscripción">
                         <i class="pi pi-ban text-red-500" />
                      </button>
                   </div>
@@ -182,7 +232,7 @@ onMounted(() => {
           template="RowsPerPageDropdown"
           @page="changePage"
         /> -->
-        <Paginator :first="firstRecord" :rows="currentLimit" :totalRecords="totalItems"
+        <Paginator v-if="!loading && suscripciones.length !== 0" :first="firstRecord" :rows="currentLimit" :totalRecords="totalItems"
           :rowsPerPageOptions="rowsPerPageOptions" @page="changePage" />
       </template>
     </Card>

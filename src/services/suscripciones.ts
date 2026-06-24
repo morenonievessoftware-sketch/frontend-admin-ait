@@ -27,3 +27,14 @@ export const getListSuscripciones = async (params?: paramsPagination): Promise<P
     throw error
   }
 }
+
+// export const cancelarSuscripcion = async (id: string): Promise<Suscripcion> => {
+export const cancelarSuscripcion = async (id: string) => {
+  try {
+    const { data } = await api.put(`/suscripciones/cancel/${id}`)
+    return data
+  } catch (error) {
+    console.error(`Error al cancelar la suscripción con ID ${id}:`, error)
+    throw error
+  }
+}
