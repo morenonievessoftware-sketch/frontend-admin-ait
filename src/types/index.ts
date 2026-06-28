@@ -164,13 +164,15 @@ export interface Suscripcion {
 
 export interface Pagination<T> {
   data: T[]
-  totalItems: number
-  totalPages: number
-  hasNextPage: boolean
-  hasPreviousPage: boolean
-  limit: number
-  page: number
-  offset: number
+  pagination: {
+    totalItems: number
+    totalPages: number
+    hasNextPage: boolean
+    hasPreviousPage: boolean
+    limit: number
+    page: number
+    offset: number
+  }
 }
 
 // Pago/Payment types
@@ -250,4 +252,13 @@ export interface UsageStatus {
   period: string
   plan: string
   message?: string
+}
+
+// usuario types
+export interface Usuario {
+  id: string
+  name: string
+  email: string
+  rol: 'student' | 'teacher' | 'admin'
+  estado: boolean
 }
