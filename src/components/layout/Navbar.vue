@@ -59,7 +59,7 @@ const handleSearch = () => {
        <img class="w-40" src="/src/assets/aideateach.png" alt="" srcset="">
     </div>
 
-    <div class="navbar-center">
+    <!-- <div class="navbar-center">
       <div class="search-box">
         <i class="pi pi-search"></i>
         <input
@@ -69,17 +69,17 @@ const handleSearch = () => {
           @keyup.enter="handleSearch"
         />
       </div>
-    </div>
+    </div> -->
 
     <div class="navbar-right">
-      <button class="icon-button">
+      <!-- <button class="icon-button">
         <i class="pi pi-cog"></i>
-      </button>
+      </button> -->
 
-      <button class="icon-button">
+      <!-- <button class="icon-button">
         <i class="pi pi-bell"></i>
         <span class="notification-badge">3</span>
-      </button>
+      </button> -->
 
       <button class="user-button" @click="toggleUserMenu">
         <Avatar
