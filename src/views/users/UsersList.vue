@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch, nextTick } from "vue"
+import { ref, watch, nextTick, onBeforeUnmount } from "vue"
 import { useRouter, useRoute } from 'vue-router'
 import api from "../../services/api"
 import type { Usuario } from "../../types"
@@ -28,11 +28,11 @@ const route = useRoute()
 
 const LIMIT_DEFAULT = 10
 
-const op = ref();
+const op = ref<any[]>([])
 const users = ref<Usuario[]>([])
 const paginate = ref({
   page: 1,
-  first: 0,       // Índice del primer ítem (base 0) — requerido por PrimeVue Paginator
+  first: 0,       
   totalRecords: 0,
   limit: LIMIT_DEFAULT
 })
@@ -41,10 +41,10 @@ const loading = ref(false)
 const isVisibleComponent = ref(false)
 const toast = ref<Toast>({ title: "", message: "" })
 
-let searchTimeout: ReturnType<typeof setTimeout> | null = null
+let searchTimeout: ReturnType<typeof setTimeout> | undefined
 
-const toggle = (event:any) => {
-  op.value[0].toggle(event);
+const toggle = (event: MouseEvent, index: number) => {
+  op.value[index]?.toggle(event)
 }
 
 const listarUsuarios = async () => {
@@ -71,11 +71,6 @@ const listarUsuarios = async () => {
   }
 }
 
-// ─── URL Sync ─────────────────────────────────────────────────────────────────
-// La URL es la fuente de verdad: búsqueda + paginación viven en los query params.
-// Cualquier cambio de usuario actualiza la URL → este watcher reacciona → fetch.
-// Al recargar la página, los params en la URL restauran el estado automáticamente.
-
 watch(
   () => route.query,
   (query) => {
@@ -83,7 +78,6 @@ watch(
     const newLimit = Number(query.limit) || LIMIT_DEFAULT
     const newSearch = String(query.q || '')
 
-    // Sincronizar estado local desde la URL
     searchQuery.value = newSearch
     paginate.value.page = newPage
     paginate.value.limit = newLimit
@@ -91,20 +85,16 @@ watch(
 
     listarUsuarios()
   },
-  { immediate: true } // Se ejecuta al montar para manejar recarga o acceso directo con URL
+  { immediate: true }
 )
 
-/**
- * Escribe el estado actual (búsqueda + página) en la URL.
- * Usa replace para no contaminar el historial del navegador al paginar.
- */
 const actualizarURL = (overwrites: { page?: number; q?: string | null } = {}) => {
   const query: Record<string, string | number> = {}
 
   const search = 'q' in overwrites ? overwrites.q : searchQuery.value
   const page = overwrites.page ?? paginate.value.page
 
-  if (search) query.q = search    // Omitir q de la URL si está vacío
+  if (search) query.q = search
   query.page = page
   query.limit = paginate.value.limit
 
@@ -112,12 +102,12 @@ const actualizarURL = (overwrites: { page?: number; q?: string | null } = {}) =>
 }
 
 const changePaginator = (event: any) => {
-  paginate.value.first = event.first          // Actualizar de inmediato para UI fluida
-  actualizarURL({ page: event.page + 1 })     // PrimeVue es base 0, el backend espera base 1
+  paginate.value.first = event.first
+  actualizarURL({ page: event.page + 1 })
 }
 
 const onSearchInput = () => {
-  if (searchTimeout) clearTimeout(searchTimeout)
+  clearTimeout(searchTimeout)
   searchTimeout = setTimeout(() => {
     actualizarURL({ q: searchQuery.value || null, page: 1 })
   }, 500)
@@ -127,6 +117,8 @@ const limpiarBusqueda = () => {
   searchQuery.value = ''
   actualizarURL({ q: null, page: 1 })
 }
+
+onBeforeUnmount(() => clearTimeout(searchTimeout))
 
 const cambioEstadoUsuario = async (userId: string) => {
   try {
@@ -184,12 +176,12 @@ const cambioEstadoUsuario = async (userId: string) => {
 
         <!-- Lista de usuarios -->
         <div v-else class="flex flex-wrap gap-4">
-          <div v-for="user in users" :key="user.id">
+          <div v-for="(user, index) in users" :key="user.id">
             <Card class="w-xs overflow-hidden text-center">
               <template #header>
                 <div class="flex justify-between p-4">
                   <ToggleSwitch v-model="user.estado" @change="cambioEstadoUsuario(user.id)" />
-                  <button class="cursor-pointer" @click="toggle($event)">
+                  <button class="cursor-pointer" @click="toggle($event, index)">
                     <i class="pi pi-ellipsis-v h-1.5" />
                   </button>
                   <Popover ref="op">
@@ -216,8 +208,12 @@ const cambioEstadoUsuario = async (userId: string) => {
       </template>
 
       <template #footer>
-        <Paginator :totalRecords="paginate.totalRecords" :rows="paginate.limit" :first="paginate.first"
-          :rowsPerPageOptions="[10, 20, 30]" @page="changePaginator($event)" />
+        <Paginator 
+          :totalRecords="paginate.totalRecords" 
+          :rows="paginate.limit" 
+          :first="paginate.first"
+          :rowsPerPageOptions="[10, 20, 30]" 
+          @page="changePaginator($event)" />
       </template>
     </Card>
   </div>

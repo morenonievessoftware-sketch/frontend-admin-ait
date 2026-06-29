@@ -1,98 +1,61 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, ref, watch } from 'vue'
-import { useRoute, useRouter, type LocationQueryRaw } from 'vue-router'
+import { ref, watch, nextTick, onBeforeUnmount } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import Card from 'primevue/card'
-import Popover from 'primevue/popover';
-import ProgressSpinner from 'primevue/progressspinner';
+import Popover from 'primevue/popover'
+import ProgressSpinner from 'primevue/progressspinner'
 import Paginator from 'primevue/paginator'
 import type { PageState } from 'primevue/paginator'
 import type { Suscripcion } from '../../types'
-import IconPerson from "../../assets/person.svg"
-import NoData from "../../assets/no-data.svg"
+import IconPerson from '../../assets/person.svg'
+import NoData from '../../assets/no-data.svg'
 import { getListSuscripciones, cancelarSuscripcion } from '../../services/suscripciones'
+import Toast from '../../components/ui/toast.vue'
 
+interface ToastData {
+  title: string
+  message: string
+  type?: 'success' | 'info' | 'warn' | 'error' | 'secondary' | 'contrast'
+}
 
 const route = useRoute()
 const router = useRouter()
 
-const suscripciones = ref<Suscripcion[]>([])
-const totalItems = ref(0)
-const loading = ref(false)
+const LIMIT_DEFAULT = 10
 const rowsPerPageOptions = [10, 20, 30]
-const defaultRows = 10
-const op = ref()
 
-const toggle = (event: any) => {
-  op.value[0].toggle(event);
+const suscripciones = ref<Suscripcion[]>([])
+const paginate = ref({
+  page: 1,
+  first: 0,       // Índice del primer ítem (base 0) — requerido por PrimeVue Paginator
+  totalRecords: 0,
+  limit: LIMIT_DEFAULT
+})
+const searchQuery = ref('')
+const loading = ref(false)
+const toast = ref<ToastData>({ title: '', message: '' })
+const op = ref<any[]>([])
+
+let searchTimeout: ReturnType<typeof setTimeout> | undefined
+
+const toggle = (event: MouseEvent, index: number) => {
+  op.value[index]?.toggle(event)
 }
 
-
-const parsePage = (value: any) => {
-  const parsedValue = Number(value)
-  return Number.isInteger(parsedValue) && parsedValue > 0 ? parsedValue : 1
-}
-
-const parseLimit = (value: any) => {
-  const parsedValue = Number(value)
-  return rowsPerPageOptions.includes(parsedValue) ? parsedValue : defaultRows
-}
-
-const parseSearch = (value: unknown) => {
-  if (typeof value === 'string') {
-    return value
-  }
-
-  if (Array.isArray(value)) {
-    return value[0] ?? ''
-  }
-
-  return ''
-}
-
-const searchTerm = ref<string>(parseSearch(route.query.search))
-let searchDebounceTimer: ReturnType<typeof setTimeout> | undefined
-
-const currentPage = computed(() => parsePage(route.query.page))
-const currentLimit = computed(() => parseLimit(route.query.limit))
-const currentSearch = computed(() => parseSearch(route.query.search))
-
-const firstRecord = computed(() => (currentPage.value - 1) * currentLimit.value)
-
-const buildQuery = (page: number, limit: number, search: string) => {
-  const query: LocationQueryRaw = {
-    page: String(page),
-    limit: String(limit),
-  }
-
-  if (search) {
-    query.search = search
-  }
-
-  return query
-}
-
-const suspenderSuscripcion = async (userId: string) => {
-  console.log('Suspender suscripción con ID:', userId)
-  // return
-  try {
-    const res = await cancelarSuscripcion(userId)
-    listarSuscripciones()
-    console.log('Suscripción suspendida:', res)
-  } catch (error) {
-    console.error('Error al suspender la suscripción:', error)
-  }
-}
-
-const listarSuscripciones = async (page = currentPage.value, limit = currentLimit.value, search = currentSearch.value) => {
+const listarSuscripciones = async () => {
   loading.value = true
   try {
-    const response = await getListSuscripciones({
-      page,
-      limit,
-      search: search || undefined,
-    })
-    suscripciones.value = response.data
-    totalItems.value = response.totalItems
+    const params: Record<string, string | number> = {
+      page: paginate.value.page,
+      limit: paginate.value.limit,
+    }
+    if (searchQuery.value.trim()) {
+      params.search = searchQuery.value.trim()
+    }
+    const response = await getListSuscripciones(params)
+    suscripciones.value      = response.data
+    paginate.value.totalRecords = response.pagination.totalItems
+    paginate.value.limit     = response.pagination.limit
   } catch (error) {
     console.error('Error al cargar suscripciones:', error)
   } finally {
@@ -100,64 +63,77 @@ const listarSuscripciones = async (page = currentPage.value, limit = currentLimi
   }
 }
 
-const changePage = (event: PageState) => {
-  void router.push({
-    query: buildQuery(event.page + 1, event.rows, currentSearch.value),
-  })
-}
+// ─── URL Sync ────────────────────────────────────────────────────────────────
+// La URL es la fuente de verdad. Todo cambio (búsqueda o paginación)
+// actualiza la URL, y este watcher reacciona para fetchear los datos.
 
 watch(
-  () => [route.query.page, route.query.limit, route.query.search],
-  async () => {
-    const page = parsePage(route.query.page)
-    const limit = parseLimit(route.query.limit)
-    const search = parseSearch(route.query.search)
-    const rawSearch = route.query.search
+  () => route.query,
+  (query) => {
+    const newPage   = Number(query.page)   || 1
+    const newLimit  = Number(query.limit)  || LIMIT_DEFAULT
+    const newSearch = String(query.search  || '')
 
-    const requiresNormalization =
-      route.query.page !== String(page) ||
-      route.query.limit !== String(limit) ||
-      (search === '' ? Array.isArray(rawSearch) || rawSearch === '' : rawSearch !== search)
+    searchQuery.value    = newSearch
+    paginate.value.page  = newPage
+    paginate.value.limit = newLimit
+    paginate.value.first = (newPage - 1) * newLimit
 
-    if (requiresNormalization) {
-      await router.replace({
-        query: buildQuery(page, limit, search),
-      })
-      return
-    }
-
-    await listarSuscripciones(page, limit, search)
+    listarSuscripciones()
   },
   { immediate: true }
 )
 
-watch(currentSearch, (value) => {
-  if (value !== searchTerm.value) {
-    searchTerm.value = value
-  }
-}, { immediate: true })
+const actualizarURL = (overwrites: { page?: number; search?: string | null } = {}) => {
+  const query: Record<string, string | number> = {}
 
-watch(searchTerm, (value) => {
-  if (value === currentSearch.value) {
-    return
-  }
+  const search = 'search' in overwrites ? overwrites.search : searchQuery.value
+  const page   = overwrites.page ?? paginate.value.page
 
-  if (searchDebounceTimer) {
-    clearTimeout(searchDebounceTimer)
-  }
+  if (search) query.search = search
+  query.page  = page
+  query.limit = paginate.value.limit
 
-  searchDebounceTimer = setTimeout(() => {
-    void router.replace({
-      query: buildQuery(1, currentLimit.value, value),
-    })
+  router.replace({ query })
+}
+
+const changePage = (event: PageState) => {
+  paginate.value.first = event.first
+  paginate.value.limit = event.rows
+  actualizarURL({ page: event.page + 1 })
+}
+
+const onSearchInput = () => {
+  clearTimeout(searchTimeout)
+  searchTimeout = setTimeout(() => {
+    actualizarURL({ search: searchQuery.value || null, page: 1 })
   }, 500)
-})
+}
 
-onBeforeUnmount(() => {
-  if (searchDebounceTimer) {
-    clearTimeout(searchDebounceTimer)
+onBeforeUnmount(() => clearTimeout(searchTimeout))
+
+const suspenderSuscripcion = async (userId: string) => {
+  try {
+    await cancelarSuscripcion(userId)
+    await listarSuscripciones()
+    toast.value = { title: '', message: '' }
+    await nextTick()
+    toast.value = {
+      title: 'Suscripción suspendida',
+      message: 'La suscripción fue suspendida correctamente.',
+      type: 'success',
+    }
+  } catch (error) {
+    console.error('Error al suspender la suscripción:', error)
+    toast.value = { title: '', message: '' }
+    await nextTick()
+    toast.value = {
+      title: 'Error',
+      message: 'No fue posible suspender la suscripción.',
+      type: 'error',
+    }
   }
-})
+}
 </script>
 
 <template>
@@ -174,69 +150,102 @@ onBeforeUnmount(() => {
             <input
               type="search"
               placeholder="Buscar..."
-              v-model="searchTerm"
+              v-model="searchQuery"
+              @input="onSearchInput"
               class="w-full rounded-md border border-gray-200 py-1.5 pl-10 pr-3 outline-none"
             />
           </div>
         </div>
       </template>
+
       <template #content>
+        <!-- Loading -->
         <div v-if="loading" class="flex items-center justify-center py-10">
           <ProgressSpinner />
         </div>
-        <div v-else-if="!loading && suscripciones.length === 0" class="flex flex-col items-center justify-center py-10 gap-4">
-          <img :src="NoData" alt="No data" class="w-64 h-64 opacity-50" />
-          <p class="text-gray-500">No hay registros.</p>
+
+        <!-- Sin resultados -->
+        <!-- FIX: eliminado !loading redundante; v-else-if ya implica que v-if es falso -->
+        <div v-else-if="suscripciones.length === 0" class="flex flex-col items-center justify-center py-10 gap-4">
+          <img :src="NoData" alt="Sin datos" class="w-64 h-64 opacity-50" />
+          <p class="text-gray-500">
+            No hay registros{{ searchQuery ? ` para "${searchQuery}"` : '' }}.
+          </p>
         </div>
-        <div v-for="suscripcion in suscripciones" :key="suscripcion.id">
-          <div class="relative z-0 border border-gray-200 md:min-w-3/12 sm:max-w-3/12 md:max-w-3/12 lg:max-w-3/12 rounded-xl p-4 transition-shadow duration-300 hover:z-10 hover:shadow-[0_6px_15px_rgba(15,23,42,0.16)]">
+
+        <!-- FIX: wrapper flex para que las tarjetas se dispongan en grilla horizontal.
+             Antes faltaba este contenedor y las tarjetas se apilaban verticalmente. -->
+        <div v-else class="flex flex-wrap gap-4 p-2">
+          <!-- FIX: se expone `index` en el v-for para pasarlo al toggle del popover -->
+          <div
+            v-for="(suscripcion, index) in suscripciones"
+            :key="suscripcion.id"
+            class="relative z-0 border border-gray-200 w-64 rounded-xl p-4 transition-shadow duration-300 hover:z-10 hover:shadow-[0_6px_15px_rgba(15,23,42,0.16)]"
+          >
             <div class="flex items-center justify-between mb-4">
               <span :class="['status-badge', suscripcion.estado === 'activo' ? 'activa' : 'inactiva']">
                 {{ suscripcion.estado }}
               </span>
+
               
-              <button class="cursor-pointer" @click="toggle">
+              <button
+                class="cursor-pointer"
+                aria-label="Opciones de suscripción"
+                @click="toggle($event, index)"
+              >
                 <i class="pi pi-ellipsis-v text-gray-400" />
               </button>
+
+              
               <Popover ref="op">
-                <div class="flex flex-col gap-4">
-                  <div>
-                     <button class="cursor-pointer rounded-full p-1.5" @click="suspenderSuscripcion(suscripcion.userId)" title="Suspender suscripción">
-                        <i class="pi pi-ban text-red-500" />
-                     </button>
-                  </div>
+                <div class="flex flex-col gap-2">
+                  <button
+                    class="cursor-pointer rounded-full p-1.5 flex items-center gap-2 text-red-500 hover:bg-red-50 transition-colors"
+                    title="Suspender suscripción"
+                    @click="suspenderSuscripcion(suscripcion.userId)"
+                  >
+                    <i class="pi pi-ban" />
+                    <span class="text-sm">Suspender</span>
+                  </button>
                 </div>
               </Popover>
             </div>
+
             <img :src="IconPerson" alt="persona" class="mx-auto my-8 w-24 h-24 opacity-50" />
+
             <div class="text-center text-lg font-semibold text-gray-800">
-              <span :class="suscripcion.tipoPlan == 'Premium' ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-800'" 
-                    class="px-3 py-1 rounded-full text-sm font-medium">
+              <span
+                :class="suscripcion.tipoPlan === 'Premium' ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-800'"
+                class="px-3 py-1 rounded-full text-sm font-medium"
+              >
                 {{ suscripcion.tipoPlan }}
               </span>
-            </div>  
+            </div>
+
             <div class="text-center text-gray-700 font-medium my-1.5">
               {{ suscripcion.nombreUsuario }} {{ suscripcion.apellidoUsuario }}
             </div>
+
             <div class="text-center text-gray-500 text-sm">
-              {{ new Date(suscripcion.fechaInicio).toLocaleDateString() }} - {{ new Date(suscripcion.fechaFin).toLocaleDateString() }}
+              {{ new Date(suscripcion.fechaInicio).toLocaleDateString() }} –
+              {{ new Date(suscripcion.fechaFin).toLocaleDateString() }}
             </div>
           </div>
         </div>
 
-        <!-- <Paginator
-          :first="firstRecord"
-          :rows="paramsPaginator.limit"
-          :totalRecords="totalItems"
+        <Paginator
+          v-if="!loading && suscripciones.length > 0"
+          :first="paginate.first"
+          :rows="paginate.limit"
+          :totalRecords="paginate.totalRecords"
           :rowsPerPageOptions="rowsPerPageOptions"
-          template="RowsPerPageDropdown"
           @page="changePage"
-        /> -->
-        <Paginator v-if="!loading && suscripciones.length !== 0" :first="firstRecord" :rows="currentLimit" :totalRecords="totalItems"
-          :rowsPerPageOptions="rowsPerPageOptions" @page="changePage" />
+        />
       </template>
     </Card>
   </div>
+
+  <Toast :title="toast.title" :message="toast.message" :type="toast.type" :focusOnShow="false" />
 </template>
 
 <style scoped>
