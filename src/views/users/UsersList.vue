@@ -38,7 +38,7 @@ const paginate = ref({
 })
 const searchQuery = ref('')
 const loading = ref(false)
-const isVisibleComponent = ref(false)
+const toggleCreateEditUser = ref(false)
 const toast = ref<Toast>({ title: "", message: "" })
 
 let searchTimeout: ReturnType<typeof setTimeout> | undefined
@@ -158,7 +158,7 @@ const cambioEstadoUsuario = async (userId: string) => {
                 aria-label="Limpiar búsqueda" @click="limpiarBusqueda" />
             </div>
 
-            <Button label="Nuevo Usuario" icon="pi pi-plus" @click="isVisibleComponent = true" />
+            <Button label="Nuevo Usuario" icon="pi pi-plus" @click="toggleCreateEditUser = true" />
           </div>
         </div>
       </template>
@@ -186,7 +186,7 @@ const cambioEstadoUsuario = async (userId: string) => {
                   </button>
                   <Popover ref="op">
                     <div class="flex flex-col gap-2 p-2">
-                      <button class="cursor-pointer" @click="isVisibleComponent = true">
+                      <button class="cursor-pointer" @click="toggleCreateEditUser = true">
                         <i class="pi pi-pencil" />
                       </button>
                       <button class="cursor-pointer">
@@ -220,8 +220,8 @@ const cambioEstadoUsuario = async (userId: string) => {
 
   <Toast :title="toast.title" :message="toast.message" :type="toast.type" :focusOnShow="false" />
 
-  <FormCreateEditUser :visible="isVisibleComponent" @update:visible="isVisibleComponent = $event"
-    @isSaved="listarUsuarios" />
+  <FormCreateEditUser :visible="toggleCreateEditUser" @update:visible="toggleCreateEditUser = $event"
+    @isSaved="listarUsuarios" :isNewUser="false"/>
 </template>
 
 <style scoped>
